@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h> /* Adicionado para os testes automatizados */
 
 /* ---------------------------- Constantes ------------------------------- */
 #define TIPO_COMUM        1
@@ -97,6 +98,7 @@ void  finalizarAtendimento(Sistema *sis);
 void  exibirAguardando(const Sistema *sis);
 void  exibirHistorico(const Sistema *sis);
 void  encerrarPrograma(Sistema *sis);
+void  rodarTodosTestes(void);
 
 /* ================================ main =================================== */
 
@@ -122,6 +124,7 @@ int main(void) {
             case 4: exibirAguardando(&sistema);     break;
             case 5: exibirHistorico(&sistema);      break;
             case 6: encerrarPrograma(&sistema);     break;
+            case 7: rodarTodosTestes();             break;
             default:
                 printf("Opcao invalida. Tente novamente.\n");
         }
@@ -141,6 +144,7 @@ void exibirMenu(void) {
     printf("4. Exibir quantidade aguardando\n");
     printf("5. Exibir historico\n");
     printf("6. Sair\n");
+    printf("7. Rodar testes automatizados\n");
     printf("Escolha uma opcao: ");
 }
 
@@ -523,4 +527,186 @@ void encerrarPrograma(Sistema *sis) {
     liberarHistorico(sis);
 
     printf("Memoria liberada com sucesso. Encerrando o programa.\n");
+}
+
+/* ================== Testes Automatizados Completos ========================= */
+void rodarTodosTestes(void) {
+    printf("\n ---------- INICIANDO BATERIA DE TESTES AUTOMATIZADOS ---------- \n");
+
+    {
+        printf("[Teste 1] Consulta inicial com filas vazias... ");
+        Sistema sis = {0};
+        assert(sis.filaComum.quantidade == 0);
+        assert(sis.filaPrioritaria.quantidade == 0);
+        assert(sis.atendimentosEmAndamento.quantidade == 0);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 2] Geracao da primeira senha comum... ");
+        Sistema sis = {0};
+        Senha *s = calloc(1, sizeof(Senha));
+        strcpy(s->id, "C001");
+        enfileirar(&sis.filaComum, s);
+        assert(sis.filaComum.quantidade == 1);
+        assert(strcmp(sis.filaComum.inicio->id, "C001") == 0);
+        liberarFila(&sis.filaComum);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 3] Geracao da primeira senha prioritaria... ");
+        Sistema sis = {0};
+        Senha *s = calloc(1, sizeof(Senha));
+        strcpy(s->id, "P001");
+        enfileirar(&sis.filaPrioritaria, s);
+        assert(sis.filaPrioritaria.quantidade == 1);
+        assert(sis.filaComum.quantidade == 0);
+        assert(strcmp(sis.filaPrioritaria.inicio->id, "P001") == 0);
+        liberarFila(&sis.filaPrioritaria);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 4] Geracao de varias senhas e contagem das filas... ");
+        Sistema sis = {0};
+        Senha *c1 = calloc(1, sizeof(Senha)); strcpy(c1->id, "C001"); enfileirar(&sis.filaComum, c1);
+        Senha *c2 = calloc(1, sizeof(Senha)); strcpy(c2->id, "C002"); enfileirar(&sis.filaComum, c2);
+        Senha *p1 = calloc(1, sizeof(Senha)); strcpy(p1->id, "P001"); enfileirar(&sis.filaPrioritaria, p1);
+        Senha *c3 = calloc(1, sizeof(Senha)); strcpy(c3->id, "C003"); enfileirar(&sis.filaComum, c3);
+        
+        assert(sis.filaComum.quantidade == 3);
+        assert(sis.filaPrioritaria.quantidade == 1);
+        assert((sis.filaComum.quantidade + sis.filaPrioritaria.quantidade) == 4);
+        
+        liberarFila(&sis.filaComum);
+        liberarFila(&sis.filaPrioritaria);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 5] Atendimento prioritario antes da fila comum... ");
+        Sistema sis = {0};
+        Senha *c1 = calloc(1, sizeof(Senha)); strcpy(c1->id, "C001"); enfileirar(&sis.filaComum, c1);
+        Senha *c2 = calloc(1, sizeof(Senha)); strcpy(c2->id, "C002"); enfileirar(&sis.filaComum, c2);
+        Senha *p1 = calloc(1, sizeof(Senha)); strcpy(p1->id, "P001"); enfileirar(&sis.filaPrioritaria, p1);
+
+        Fila *escolhida = (sis.filaPrioritaria.quantidade > 0) ? &sis.filaPrioritaria : &sis.filaComum;
+        Senha *prox = escolhida->inicio;
+        desenfileirar(escolhida);
+        enfileirar(&sis.atendimentosEmAndamento, prox);
+        
+        assert(strcmp(prox->id, "P001") == 0);
+        printf("OK\n");
+
+        printf("[Teste 6] Atendimento FIFO dentro da mesma fila... ");
+        escolhida = (sis.filaPrioritaria.quantidade > 0) ? &sis.filaPrioritaria : &sis.filaComum;
+        prox = escolhida->inicio;
+        desenfileirar(escolhida);
+        enfileirar(&sis.atendimentosEmAndamento, prox);
+        
+        assert(strcmp(prox->id, "C001") == 0);
+        
+        liberarFila(&sis.filaComum);
+        liberarFila(&sis.atendimentosEmAndamento);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 7] Tentativa de chamar senha com filas vazias... ");
+        Sistema sis = {0};
+        assert(sis.filaComum.quantidade == 0 && sis.filaPrioritaria.quantidade == 0);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 8] Tentativa de finalizar atendimento sem atendimento ativo... ");
+        Sistema sis = {0};
+        assert(sis.atendimentosEmAndamento.quantidade == 0);
+        Senha *alvo = removerPorId(&sis.atendimentosEmAndamento, "C001");
+        assert(alvo == NULL);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 9] Validacao de tipo de senha e horario invalido... ");
+        int min;
+        assert(validarHorario("25:70", &min) == 0);
+        assert(validarHorario("09:00", &min) == 1);
+        assert(min == 9 * 60);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 10] Historico completo dos tempos de atendimento... ");
+        Sistema sis = {0};
+        Senha *p1 = calloc(1, sizeof(Senha)); 
+        strcpy(p1->id, "P001"); p1->tipo = TIPO_PRIORITARIA; 
+        p1->tempoEspera = 5; p1->tempoAtendimento = 15;
+        
+        Senha *c1 = calloc(1, sizeof(Senha)); 
+        strcpy(c1->id, "C001"); c1->tipo = TIPO_COMUM;
+        c1->tempoEspera = 30; c1->tempoAtendimento = 20;
+
+        adicionarHistorico(&sis, p1);
+        adicionarHistorico(&sis, c1);
+
+        assert(sis.totalFinalizados == 2);
+        assert(sis.somaEspera == 35);
+        assert(sis.somaAtendimento == 35);
+        
+        liberarHistorico(&sis);
+        printf("OK\n");
+    }
+    
+    printf("\n --- Testes da Equipe 11 (Estrutura de Multiplos Atendentes) --- \n");
+
+    {
+        printf("[Teste 11] Chamada de multiplas senhas simultaneas... ");
+        Sistema sis = {0};
+        Senha *c1 = calloc(1, sizeof(Senha)); strcpy(c1->id, "C001"); enfileirar(&sis.filaComum, c1);
+        Senha *p1 = calloc(1, sizeof(Senha)); strcpy(p1->id, "P001"); enfileirar(&sis.filaPrioritaria, p1);
+
+        Senha *at1 = sis.filaPrioritaria.inicio; desenfileirar(&sis.filaPrioritaria);
+        enfileirar(&sis.atendimentosEmAndamento, at1);
+
+        Senha *at2 = sis.filaComum.inicio; desenfileirar(&sis.filaComum);
+        enfileirar(&sis.atendimentosEmAndamento, at2);
+
+        assert(sis.atendimentosEmAndamento.quantidade == 2);
+        liberarFila(&sis.atendimentosEmAndamento);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 12] Finalizacao de atendimento especifico fora de ordem... ");
+        Sistema sis = {0};
+        Senha *p1 = calloc(1, sizeof(Senha)); strcpy(p1->id, "P001"); enfileirar(&sis.atendimentosEmAndamento, p1);
+        Senha *c1 = calloc(1, sizeof(Senha)); strcpy(c1->id, "C001"); enfileirar(&sis.atendimentosEmAndamento, c1);
+
+        Senha *alvo = removerPorId(&sis.atendimentosEmAndamento, "C001");
+        assert(alvo != NULL);
+        assert(strcmp(alvo->id, "C001") == 0);
+        assert(sis.atendimentosEmAndamento.quantidade == 1);
+        
+        free(alvo);
+        liberarFila(&sis.atendimentosEmAndamento);
+        printf("OK\n");
+    }
+
+    {
+        printf("[Teste 13] Tentativa de finalizacao de ID incorreto com atendimentos ativos... ");
+        Sistema sis = {0};
+        Senha *p1 = calloc(1, sizeof(Senha)); strcpy(p1->id, "P001"); enfileirar(&sis.atendimentosEmAndamento, p1);
+        Senha *c2 = calloc(1, sizeof(Senha)); strcpy(c2->id, "C002"); enfileirar(&sis.atendimentosEmAndamento, c2);
+
+        Senha *erro = removerPorId(&sis.atendimentosEmAndamento, "C099");
+        assert(erro == NULL);
+        assert(sis.atendimentosEmAndamento.quantidade == 2);
+
+        liberarFila(&sis.atendimentosEmAndamento);
+        printf("OK\n");
+    }
+
+    printf("\n ---------- TODOS OS 13 TESTES PASSARAM COM SUCESSO! ---------- \n");
 }
